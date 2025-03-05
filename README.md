@@ -128,6 +128,12 @@ This will deploy the worker to your Cloudflare account. You'll need to have the 
   - `error-logger.ts`: Error logging utilities
   - `job-processor.ts`: Job processing utilities
 
+## Security Best Practices
+
+- Never commit sensitive information like API keys or credentials
+- Use environment variables for sensitive data
+- Follow the configuration instructions to set up your local environment securely
+
 ## Troubleshooting
 
 If you encounter issues with Node.js built-in modules, make sure:
