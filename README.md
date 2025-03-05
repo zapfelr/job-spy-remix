@@ -1,6 +1,6 @@
-# Job Spy
+# Job Spy Remix
 
-Job Spy is a tool that tracks job postings from company job boards, detects changes, and provides a feed of job market activity.
+A job tracking application that collects job postings from various company job boards.
 
 ## Features
 
@@ -62,3 +62,73 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 ## License
 
 This project is proprietary and confidential.
+
+## Cloudflare Workers Setup
+
+This project includes a Cloudflare Worker that collects job data from various company job boards. The worker is scheduled to run twice daily and can also be triggered via HTTP request.
+
+### Running the Worker Locally
+
+To run the worker locally, you need to have Node.js and npm installed. Then, you can use the following command:
+
+```bash
+npx wrangler dev src/workers/job-collector.ts
+```
+
+This will start a local server that simulates the Cloudflare Workers environment. You can then trigger the worker by making a request to the local server.
+
+### Compatibility with Cloudflare Workers
+
+The worker is designed to be compatible with the Cloudflare Workers environment, which has some limitations compared to a regular Node.js environment:
+
+1. **Node.js Built-in Modules**: Cloudflare Workers doesn't support Node.js built-in modules like `fs`, `path`, `os`, and `crypto` by default. To use these modules, we've added the `nodejs_compat` flag in the `wrangler.toml` file and prefixed the imports with `node:`.
+
+2. **Database Access**: The worker uses Supabase for database access. We've created a special Supabase client for Cloudflare Workers that doesn't rely on browser-specific APIs.
+
+3. **Environment Variables**: The worker expects the following environment variables to be set:
+   - `API_SECRET`: A secret key for authenticating API requests
+   - `SUPABASE_URL`: The URL of your Supabase instance
+   - `SUPABASE_SERVICE_KEY`: The service key for your Supabase instance
+
+### Deployment
+
+To deploy the worker to Cloudflare, you can use the following command:
+
+```bash
+npx wrangler deploy src/workers/job-collector.ts
+```
+
+This will deploy the worker to your Cloudflare account. You'll need to have the Cloudflare CLI configured with your account credentials.
+
+## Project Structure
+
+- `src/workers/`: Contains the Cloudflare Worker code
+  - `job-collector.ts`: The job collector worker
+  - `types.ts`: TypeScript types for the worker
+- `src/lib/`: Contains shared library code
+  - `job-apis/`: Contains API integrations for different job boards
+    - `ashby.ts`: Ashby API integration
+    - `greenhouse.ts`: Greenhouse API integration
+    - `types.ts`: Common types for job API integrations
+  - `supabase-worker.ts`: Supabase client for Cloudflare Workers
+  - `supabase.ts`: Supabase client for the main application
+  - `supabase-script.ts`: Supabase client for scripts
+  - `dotenv-worker.ts`: Simplified dotenv implementation for Cloudflare Workers
+  - `error-logger.ts`: Error logging utilities
+  - `job-processor.ts`: Job processing utilities
+
+## Troubleshooting
+
+If you encounter issues with Node.js built-in modules, make sure:
+
+1. The `nodejs_compat` flag is set in `wrangler.toml`
+2. The compatibility date is set to "2024-09-23" or later
+3. Node.js built-in module imports are prefixed with `node:`
+
+For example:
+```typescript
+import fs from 'node:fs';
+import path from 'node:path';
+```
+
+If you're still having issues, try using the simplified worker implementation in `job-collector.ts` which avoids using problematic dependencies.

@@ -4,8 +4,11 @@
     "module": "CommonJS",
     "moduleResolution": "node",
     "outDir": "dist",
-    "noEmit": false
+    "noEmit": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true
   },
   "include": ["src/scripts/**/*", "src/lib/**/*", "src/types/**/*"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "src/lib/supabase.ts"]
 } 

@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import dotenv from 'dotenv';
 import { type CookieOptions } from '@supabase/ssr';
 
@@ -34,19 +34,22 @@ export function createServerSupabaseClient() {
     supabaseAnonKey,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
+        async get(name: string) {
+          const cookies = await cookieStore;
+          return cookies.get(name)?.value;
         },
-        set(name: string, value: string, options: CookieOptions) {
+        async set(name: string, value: string, options: CookieOptions) {
           try {
-            cookieStore.set(name, value, options);
+            const cookies = await cookieStore;
+            cookies.set(name, value, options);
           } catch (error) {
             console.error('Error setting cookie:', error);
           }
         },
-        remove(name: string, options: CookieOptions) {
+        async remove(name: string, options: CookieOptions) {
           try {
-            cookieStore.set(name, '', { ...options, maxAge: 0 });
+            const cookies = await cookieStore;
+            cookies.set(name, '', { ...options, maxAge: 0 });
           } catch (error) {
             console.error('Error removing cookie:', error);
           }

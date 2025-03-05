@@ -9,9 +9,12 @@
     "lint": "next lint",
     "setup-db": "ts-node --project tsconfig.json src/scripts/setup-database.ts",
     "build-scripts": "tsc -p tsconfig.scripts.json",
+    "build-workers": "tsc -p tsconfig.workers.json",
     "init-departments": "npm run build-scripts && node dist/scripts/init-departments.js",
     "test-departments": "npm run build-scripts && node dist/scripts/test-department-matcher.js",
-    "setup-departments": "npm run build-scripts && node dist/scripts/setup-departments.js"
+    "setup-departments": "npm run build-scripts && node dist/scripts/setup-departments.js",
+    "generate-test-data": "npm run build-scripts && node dist/scripts/generate-test-data.js",
+    "setup-api-errors": "ts-node --project tsconfig.json src/db/api-errors-table.sql"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.10.0",
@@ -23,7 +26,8 @@
     "next": "15.2.1",
     "postgres": "^3.4.5",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -31,6 +35,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/uuid": "^9.0.8",
     "eslint": "^9",
     "eslint-config-next": "15.2.1",
     "eslint-config-prettier": "^10.0.2",
