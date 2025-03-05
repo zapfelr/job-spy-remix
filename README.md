@@ -67,6 +67,17 @@ This project is proprietary and confidential.
 
 This project includes a Cloudflare Worker that collects job data from various company job boards. The worker is scheduled to run twice daily and can also be triggered via HTTP request.
 
+### Configuration
+
+1. Create a `wrangler.toml` file based on the example:
+```bash
+cp wrangler.example.toml wrangler.toml
+```
+
+2. Update the `wrangler.toml` file with your actual API keys and Supabase credentials.
+
+> **IMPORTANT**: Never commit the `wrangler.toml` file to version control as it contains sensitive information. It's already added to `.gitignore`.
+
 ### Running the Worker Locally
 
 To run the worker locally, you need to have Node.js and npm installed. Then, you can use the following command:
