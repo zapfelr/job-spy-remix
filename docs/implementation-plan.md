@@ -210,6 +210,17 @@
 - Added support for manual job collection via HTTP endpoint
 - Implemented batch processing to avoid overwhelming APIs
 - Added department matching integration for job categorization
+- Consolidated job collector code into a single file for better maintainability
+- Implemented salary information extraction from Greenhouse job descriptions
+- Created a separate TypeScript configuration for workers to improve development experience
+- Added more detailed logging throughout the job collection process
+
+**Future enhancements:**
+- Consider adding support for additional job board types (Lever, Workday)
+- Implement more sophisticated salary extraction for Greenhouse jobs
+- Add monitoring and alerting for failed job collections
+- Optimize database queries for better performance at scale
+- Consider implementing a queue system for processing large numbers of companies
 
 ### 2.2 Change Detection System
 - Implement job comparison logic
