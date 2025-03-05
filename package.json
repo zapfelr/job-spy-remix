@@ -7,10 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "setup-db": "ts-node --project tsconfig.json src/scripts/setup-database.ts"
+    "setup-db": "ts-node --project tsconfig.json src/scripts/setup-database.ts",
+    "build-scripts": "tsc -p tsconfig.scripts.json",
+    "init-departments": "npm run build-scripts && node dist/scripts/init-departments.js",
+    "test-departments": "npm run build-scripts && node dist/scripts/test-department-matcher.js",
+    "setup-departments": "npm run build-scripts && node dist/scripts/setup-departments.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
+    "dotenv": "^16.4.7",
     "next": "15.2.1",
     "postgres": "^3.4.5",
     "react": "^19.0.0",
