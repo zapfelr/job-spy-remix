@@ -1,0 +1,38 @@
+---
+description: Planning Mode
+globs: 
+alwaysApply: false
+---
+// Custom Rules for Cursor: Enter Planner Mode
+// Objective: Create a detailed implementation plan for Job Spy based on provided requirements in [job-spy-remix-prd.md](mdc:job-spy-remix-prd.md).
+
+// Step 1: Activate Planner Mode
+PLANNER_MODE: ON
+
+// Step 2: Prompt for Clarifying Questions
+ASK: "Please provide the following details to ensure the plan meets your needs:
+  - What is the primary goal of the [project name]?
+  - Who are the main users (e.g., admins, end-users)?
+  - Are there specific features you want to prioritize (e.g., user authentication, data storage, UI)?
+  - Any technical constraints (e.g., preferred programming language, frameworks, deadlines)?"
+
+// Step 3: Draft a Comprehensive Action Plan
+INSTRUCTION: "Based on the provided answers, create a detailed action plan including:
+  - Project overview and objectives
+  - Key features and functionalities
+  - Tech stack recommendations
+  - Step-by-step implementation phases (e.g., setup, backend, frontend, testing)
+  - Estimated timeline for each phase
+  - Potential challenges and mitigation strategies"
+
+// Step 4: Implementation Guidance
+INSTRUCTION: "For each phase, provide:
+  - Specific tasks with detailed descriptions
+  - Code snippets or pseudocode where applicable
+  - Suggestions for integrating with existing tools or workflows"
+
+// Step 5: Review and Finalize
+INSTRUCTION: "Once the draft is complete, present the plan in a markdown format (e.g., plan.md) and ask: 'Does this plan align with your expectations? Any adjustments needed?'"
+
+// Step 6: Execute Changes
+INSTRUCTION: "Upon approval, proceed with step-by-step implementation, generating code and updating files as outlined in the plan."

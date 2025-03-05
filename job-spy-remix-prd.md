@@ -13,6 +13,7 @@ Job seekers currently face an inefficient process when monitoring companies for 
 ## Target User
 - Active job seekers who know the companies where they want to work 
 - Job seekers who prefer a proactive approach to job hunting
+- Target user is NOT recruiters, for now. Focused on supply side and ensuring candidates have full transparency.
 
 ## MVP Features
 
@@ -22,28 +23,29 @@ Job seekers currently face an inefficient process when monitoring companies for 
 - Simple user profile with basic information: preferred job departments and location
 -Users can delete their accounts and all associated data for GDPR/CCPA
 
-### 2. Change detection and scraping
+### 2. Job data and change detection
 
-- We centralize scraping of job pages twice daily for all companies on our site
+We'll start with a few main vendors: Ashby and Greenhouse.
+Ashby has a public URL to get jobs from job boards -- here's an example: curl https://api.ashbyhq.com/posting-api/job-board/{JOB_BOARD_NAME}?includeCompensation=true
+Greenhouse has a public URL to get jobs from job boards -- here's an example: https://boards-api.greenhouse.io/v1/boards/{company_name}/jobs
+
+- We pull data from these APIs hourly
 - The MVP will have approximately 500 companies to start.
-- As a rule, we want to capture every change. This means we prioritize having no false negatives, realizing this may result in some false positives. False positives are acceptable, but should be minimized where possible.
-- We primarily scrape using simplescraper.io
-  - We also scrape using puppeteer/playwright for any sites that simplescraper.io cannot handle
 - We detect changes for:
   - New job listings (additions)
   - Removed job listings (removals)
     - If a job is removed from the jobs page, it is marked inactive, but users will see it as "removed" to avoid duplicate postings.
     - If a job with an existing externalId reappears after being marked inactive, it is reactivated by setting status: active. This generates an "added" change card, treating it as a new appearance on the job page. If the title or location differs from the last active version, a "modified" change card is also generated to reflect the update.
-  - Modified job information (changes to title, location). This should be an exact string comparison for the title and location. 
-- For now, job descriptions are not scraped or stored for the MVP
+  - Modified title -- This should be an exact string comparison for the title
+  - Modified location -- This should be an exact string comparison for the location
 - This change detection acts as the single source of truth for each company's changes
 - Retention for these changes is 90 days
-- URLs that fail to scrape or become inaccessible will be marked as "error" status to admins only
-- One retry attempt automatically. After one retry attempt, any URLs in error status will be addressed manually by admin.
+- Should the API fail for any reason, it should be marked as "error" status to admins only
+- One retry attempt automatically. After one retry attempt, any in error status will be addressed manually by admin.
 
 ### 3. Change Cards 
 
-The UI is centralized around the idea of job change cards. Each time one of our scrapes results in changes for a specific company, a change card is created to capture those changes.
+The UI is centralized around the idea of job change cards. Each time we see a change for a specific company, a change card is created to capture those changes.
 - The change card includes:
   - Company name and logo
   - Change type (added, removed, modified)
@@ -77,16 +79,16 @@ These change cards are organized into several feeds. Users should be able to tog
   - Empty state if no jobs have been tracked
   - When a job is first tracked by the user, a change card should show in this feed stating "Started tracking [job title] at [company name]". This card persists in the feed, in chronological order.
   - When a job is untracked by the user, a change card should show in this feed stating "Stopped tracking [job title] at [company name]". This card persists in the feed, in chronological order.
-  - If a tracked job is removed/marked inactive by a company, a change card should show in this feed stating "[job title] at [company name] has been removed." It remains in the user's tracked jobs list, but no further change cards will be shown for that job, until/unless a future scrape finds this job is active again. This card persists in the feed, in chronological order.
+  - If a tracked job is removed/marked inactive by a company, a change card should show in this feed stating "[job title] at [company name] has been removed." It remains in the user's tracked jobs list, but no further change cards will be shown for that job, until/unless a future pull finds this job is active again. This card persists in the feed, in chronological order.
 - **Feed Filters**;
   - The market feed and tracked companies feed both have filters that allow a user to filter the change cards visible by department and location
   - Department filter:
     - Department filter should be a multi-select dropdown of common departments at companies. This is a predefined list of departments.
-    - When data is scraped, the departments should be categorized using this central list of departments across all companies. This should be inferred by the system, and can start with a simple keyword-based mapping rule. For example, if I select "Design" as a department, I should see all change cards for "Product Design" or "UX" jobs. If I select "Engineering" as a department, I should see change cards for titles like "forward-deployed engineers" and "senior software engineer". Make this mapping easy to change/update.
+    - When data is pulled, the departments should be categorized using this central list of departments across all companies. This should be inferred by the system, and can start with a simple keyword-based mapping rule. For example, if I select "Design" as a department, I should see all change cards for "Product Design" or "UX" jobs. If I select "Engineering" as a department, I should see change cards for titles like "forward-deployed engineers" and "senior software engineer". Make this mapping easy to change/update.
   - Location filter:
-    - Location filter should be the simplest possible way to filter for location, using a library or plugin where possible. Filters should be by city (e.g. New York, NY; San Francisco, CA) or by state ("New York"; "California"). Exact string matching on location fields from scraped data is fine for MVP.
+    - Location filter should be the simplest possible way to filter for location, using a library or plugin where possible. Filters should be by city (e.g. New York, NY; San Francisco, CA) or by state ("New York"; "California"). Exact string matching on location fields from pulled data is fine for MVP.
 - **Company List**:
-  - When viewing the market feed or tracked companies feed, the user should see a list of companies in the sidebar
+  - When viewing the market feed or tracked companies feed, the user should see a list of companies in the sidebar. This includes their name, logo, and when they were last updated.
   - This is the primary location for a user to "track" companies. Each company in the list has a button for users to track/untrack 
   - This list is sorted alphabetically. V2 will include search functionality.
 - **Company Detail Pages**;
@@ -139,9 +141,9 @@ Company Page (when clicking a company name)
 
 ### 6. System Administration- 
 - An admin dashboard allows admin to add new companies
-- On this admin dashboard, the admin should be able to input a URL, which triggers a manual scrape of that company's job page. 
+- On this admin dashboard, the admin should be able to input a URL, which triggers a manual pull of that company's job page. 
 - There should be a review step/staging where the results of the new addition is reviewed and approved before adding into the db. 
-- Once a company's URL has been added and approved, it should be included into the scheduled scrape moving forward.
+- Once a company's URL has been added and approved, it should be included into the scheduled pull moving forward.
 - Any errors in the scraping process should be clearly visible to the admin. Errors in scraping are manually reviewed
 - The admin dashboard should also show a list of all companies in the database
 
@@ -155,11 +157,11 @@ Company Page (when clicking a company name)
 
 ### Data Storage
 These schemas are not exhaustively complete.
-- Company information (name, URL, logo, when it was last scraped, industry/sector)
+- Company information (name, URL, logo, when it was last updated, industry/sector)
 - User account data
 - Jobs (company, title, location, department, externalId (the job id from the source platform, this will be unique per company), url, status (active/inactive), latest change)
   - Note: Job listings themselves are not stored, only their URL and data necessary for change detection
-- Even if job descriptions and salaries aren’t scraped now, the system should be designed to accommodate that in the future.
+- Even if changes in job descriptions and salaries aren’t tracked now, the system should be designed to accommodate that in the future.
 - Even though we don't have paid users now, we will want to have paid vs. free users in the future
 
 ## Pre-Launch Tasks
