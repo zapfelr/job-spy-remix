@@ -10,17 +10,17 @@ export default function LoginPage({
       <div className="p-8 bg-white rounded-lg shadow-md w-full max-w-md">
         <h1 className="text-2xl font-bold mb-6 text-center">Login / Sign Up</h1>
         
-        {searchParams.error && (
+        {searchParams?.error ? (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
             {searchParams.error}
           </div>
-        )}
+        ) : null}
         
-        {searchParams.message && (
+        {searchParams?.message ? (
           <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
             {searchParams.message}
           </div>
-        )}
+        ) : null}
         
         <form className="space-y-4">
           <div>

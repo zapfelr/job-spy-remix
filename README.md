@@ -149,3 +149,30 @@ import path from 'node:path';
 ```
 
 If you're still having issues, try using the simplified worker implementation in `job-collector.ts` which avoids using problematic dependencies.
+
+## Environment Setup
+
+This project requires Supabase credentials to be set up in various configuration files. To protect sensitive information, these files are not committed to Git.
+
+### Setting Up Your Environment
+
+1. Run the setup script to create the necessary configuration files from examples:
+
+```bash
+chmod +x setup-env.sh
+./setup-env.sh
+```
+
+2. Update the following files with your Supabase credentials:
+   - `.env.local`
+   - `wrangler.toml`
+   - `wrangler.job-changes-cleanup.toml`
+
+### Important Security Notes
+
+- **NEVER commit files containing API keys or secrets to Git**
+- The following files are in `.gitignore` and should not be committed:
+  - `.env.local`
+  - `wrangler.toml`
+  - `wrangler.job-changes-cleanup.toml`
+- If you accidentally commit sensitive information, rotate your API keys immediately

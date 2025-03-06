@@ -1,0 +1,18 @@
+name = "job-changes-cleanup"
+main = "src/workers/job-changes-cleanup.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Trigger the worker once daily at 3:00 AM UTC
+[triggers]
+crons = ["0 3 * * *"]
+
+# Environment variables
+[vars]
+API_SECRET = "your-api-secret-here"
+NEXT_PUBLIC_SUPABASE_URL = "your-supabase-url-here"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "your-supabase-anon-key-here"
+
+# Supabase credentials
+SUPABASE_URL = "your-supabase-url-here"
+SUPABASE_SERVICE_KEY = "your-supabase-service-key-here" 

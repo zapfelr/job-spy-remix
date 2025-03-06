@@ -7,9 +7,9 @@ import dotenv from 'dotenv';
 console.log('Loading environment variables from .env.local');
 dotenv.config({ path: '.env.local' });
 
-// Create Supabase client with hardcoded values
-const supabaseUrl = 'https://cpgwkmqyffzhuqnfwahq.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZ3drbXF5ZmZ6aHVxbmZ3YWhxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MTIxMzc5NSwiZXhwIjoyMDU2Nzg5Nzk1fQ.USgZZKTYMxQIM-s-OsZfWQ5o6t_auaVD95aQCOjXpr4';
+// Get Supabase credentials from environment variables
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || '';
 
 console.log(`Using Supabase URL: ${supabaseUrl}`);
 console.log(`Using Supabase key: ${supabaseKey ? 'Yes (key available)' : 'No (key missing)'}`);
