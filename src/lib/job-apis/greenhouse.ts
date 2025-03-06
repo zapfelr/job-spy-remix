@@ -13,8 +13,8 @@ export async function fetchGreenhouseJobs(companyName: string): Promise<RawJobDa
   try {
     console.log(`Fetching jobs from Greenhouse for ${companyName}`);
     
-    // Use the correct API endpoint as specified in the implementation plan
-    const apiUrl = `https://boards-api.greenhouse.io/v1/boards/${companyName}/jobs`;
+    // Use the content=true parameter to get full job descriptions
+    const apiUrl = `https://boards-api.greenhouse.io/v1/boards/${companyName}/jobs?content=true`;
     
     console.log(`Making request to Greenhouse API: ${apiUrl}`);
     
@@ -42,23 +42,49 @@ export async function fetchGreenhouseJobs(companyName: string): Promise<RawJobDa
       
       // Map the jobs to our standard format
       return jobsToProcess.map((job: any) => {
-        // For Greenhouse, we don't have full content in the initial response
-        // We'll use a simplified description from available fields
-        const description = job.metadata?.description || 
+        // Check if we have content from the content=true parameter
+        let jobDescription = '';
+        let salaryInfo = { 
+          min: null as number | null, 
+          max: null as number | null, 
+          currency: null as string | null, 
+          interval: null as 'yearly' | 'monthly' | 'hourly' | null 
+        };
+        
+        if (job.content) {
+          try {
+            // Decode HTML entities in the content
+            jobDescription = decodeHtmlEntities(job.content);
+            
+            // Extract salary information from the content
+            salaryInfo = extractSalaryInfo(jobDescription);
+          } catch (error) {
+            console.error(`Error processing job content for job ID ${job.id}:`, error);
+            // Fallback to basic description if content processing fails
+            jobDescription = job.metadata?.description || 
                            `${job.title} at ${job.company_name}. Location: ${job.location?.name || 'Remote/Various'}`;
+          }
+        } else {
+          // Fallback if content is not available despite using content=true
+          console.warn(`No content available for job ID ${job.id} despite using content=true parameter`);
+          jobDescription = job.metadata?.description || 
+                         `${job.title} at ${job.company_name}. Location: ${job.location?.name || 'Remote/Various'}`;
+        }
         
         return {
           externalId: job.id.toString(),
           title: job.title || '',
-          description: description,
+          description: jobDescription,
           location: job.location?.name || '',
-          department: job.departments?.[0]?.name || '',
+          department: job.departments?.length 
+            ? job.departments.map((dept: any) => dept.name).join(', ') 
+            : '',
           url: job.absolute_url || '',
           salary: {
-            min: null,
-            max: null,
-            currency: 'USD', // Default assumption
-            interval: 'yearly' // Default assumption
+            min: salaryInfo.min,
+            max: salaryInfo.max,
+            currency: salaryInfo.currency,
+            interval: salaryInfo.interval
           }
         };
       });
@@ -68,6 +94,28 @@ export async function fetchGreenhouseJobs(companyName: string): Promise<RawJobDa
   } catch (error) {
     console.error('Error fetching jobs from Greenhouse:', error);
     throw error;
+  }
+}
+
+/**
+ * Helper function to decode HTML entities in job content
+ */
+function decodeHtmlEntities(html: string): string {
+  if (!html) return '';
+  
+  try {
+    // Simple HTML entity decoding for common entities
+    return html
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ');
+  } catch (error) {
+    console.error('Error decoding HTML entities:', error);
+    return html; // Return original string if decoding fails
   }
 }
 
