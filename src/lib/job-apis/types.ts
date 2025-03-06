@@ -9,7 +9,8 @@ export interface RawJobData {
   externalId: string;
   title: string;
   description: string;
-  location?: string;
+  locations?: string[]; // Array of locations
+  location?: string;    // Keeping for backward compatibility
   department?: string;
   url?: string;
   salary?: {

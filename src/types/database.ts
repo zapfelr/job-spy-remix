@@ -35,6 +35,7 @@ export type Job = {
   location: string | null;
   department_id: string | null;
   department_raw: string | null;
+  is_remote: boolean;
   salary_min: number | null;
   salary_max: number | null;
   salary_currency: string | null;
@@ -43,6 +44,14 @@ export type Job = {
   status: 'active' | 'inactive' | 'stale';
   last_change: string | null;
   last_seen_active: string;
+  created_at: string;
+};
+
+export type JobLocation = {
+  id: string;
+  job_id: string;
+  location: string;
+  is_remote: boolean;
   created_at: string;
 };
 
@@ -117,6 +126,7 @@ export type Database = {
   industries: Industry[];
   departments: Department[];
   jobs: Job[];
+  job_locations: JobLocation[];
   job_changes: JobChange[];
   user_profiles: UserProfile[];
   user_company_tracking: UserCompanyTracking[];

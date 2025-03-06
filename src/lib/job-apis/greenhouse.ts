@@ -71,11 +71,38 @@ export async function fetchGreenhouseJobs(companyName: string): Promise<RawJobDa
                          `${job.title} at ${job.company_name}. Location: ${job.location?.name || 'Remote/Various'}`;
         }
         
+        // Handle multiple locations
+        let locations: string[] = [];
+        
+        // Check if job has multiple locations
+        if (job.offices && Array.isArray(job.offices) && job.offices.length > 0) {
+          // Extract location names from offices array
+          locations = job.offices.map((office: any) => office.name || office.location || '').filter(Boolean);
+        }
+        // Use single location if available
+        else if (job.location?.name) {
+          locations = [job.location.name];
+        }
+        
+        // Try to extract locations from the job description if we still don't have any
+        if (locations.length === 0 || (locations.length === 1 && locations[0] === 'Remote')) {
+          const extractedLocations = extractLocationsFromDescription(jobDescription);
+          if (extractedLocations.length > 0) {
+            locations = extractedLocations;
+          }
+        }
+        
+        // If no locations found, use 'Remote' as default
+        if (locations.length === 0) {
+          locations = ['Remote'];
+        }
+        
         return {
           externalId: job.id.toString(),
           title: job.title || '',
           description: jobDescription,
-          location: job.location?.name || '',
+          locations: locations,
+          location: locations.join(', '), // For backward compatibility
           department: job.departments?.length 
             ? job.departments.map((dept: any) => dept.name).join(', ') 
             : '',
@@ -98,77 +125,148 @@ export async function fetchGreenhouseJobs(companyName: string): Promise<RawJobDa
 }
 
 /**
- * Helper function to decode HTML entities in job content
+ * Decodes HTML entities in a string
  */
 function decodeHtmlEntities(html: string): string {
-  if (!html) return '';
+  // Replace common HTML entities with their character equivalents
+  return html
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#x2F;/g, '/')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x60;/g, '`')
+    .replace(/&#x3D;/g, '=')
+    .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+}
+
+/**
+ * Extracts salary information from job description
+ */
+function extractSalaryInfo(description: string): { 
+  min: number | null; 
+  max: number | null; 
+  currency: string | null; 
+  interval: 'yearly' | 'monthly' | 'hourly' | null;
+} {
+  // Default return value
+  const defaultReturn = {
+    min: null,
+    max: null,
+    currency: null,
+    interval: null as 'yearly' | 'monthly' | 'hourly' | null
+  };
   
   try {
-    // Simple HTML entity decoding for common entities
-    return html
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&amp;/g, '&')
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'")
-      .replace(/&#39;/g, "'")
-      .replace(/&nbsp;/g, ' ');
+    // Look for salary patterns like "$100,000 - $150,000" or "$100k - $150k"
+    const salaryPattern = /\$(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+k)\s*(?:-|to)\s*\$(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+k)/i;
+    const match = description.match(salaryPattern);
+    
+    if (!match) return defaultReturn;
+    
+    // Extract min and max values
+    let min = match[1];
+    let max = match[2];
+    
+    // Convert "k" notation to full numbers
+    if (min.toLowerCase().endsWith('k')) {
+      min = (parseFloat(min.slice(0, -1)) * 1000).toString();
+    }
+    
+    if (max.toLowerCase().endsWith('k')) {
+      max = (parseFloat(max.slice(0, -1)) * 1000).toString();
+    }
+    
+    // Remove commas
+    min = min.replace(/,/g, '');
+    max = max.replace(/,/g, '');
+    
+    // Determine interval (yearly, monthly, hourly)
+    let interval: 'yearly' | 'monthly' | 'hourly' | null = null;
+    
+    if (description.match(/per\s+year|annual|yearly|annually/i)) {
+      interval = 'yearly';
+    } else if (description.match(/per\s+month|monthly/i)) {
+      interval = 'monthly';
+    } else if (description.match(/per\s+hour|hourly/i)) {
+      interval = 'hourly';
+    } else {
+      // Default to yearly if not specified
+      interval = 'yearly';
+    }
+    
+    return {
+      min: parseInt(min, 10),
+      max: parseInt(max, 10),
+      currency: 'USD', // Assuming USD for now
+      interval
+    };
   } catch (error) {
-    console.error('Error decoding HTML entities:', error);
-    return html; // Return original string if decoding fails
+    console.error('Error extracting salary info:', error);
+    return defaultReturn;
   }
 }
 
 /**
- * Attempts to extract salary information from job description
- * This is a basic implementation that can be improved with more sophisticated parsing
+ * Attempts to extract location information from job description
  */
-function extractSalaryInfo(content: string | null | undefined): {
-  min: number | null;
-  max: number | null;
-  currency: string | null;
-  interval: 'yearly' | 'monthly' | 'hourly' | null;
-} {
-  if (!content) {
-    return { min: null, max: null, currency: null, interval: null };
-  }
-
-  // Default result
-  const result: {
-    min: number | null;
-    max: number | null;
-    currency: string | null;
-    interval: 'yearly' | 'monthly' | 'hourly' | null;
-  } = { min: null, max: null, currency: null, interval: null };
+function extractLocationsFromDescription(description: string): string[] {
+  if (!description) return [];
   
-  try {
-    // Look for common salary patterns
-    // Example: "$100,000 - $150,000 per year"
-    const salaryRegex = /\$([0-9,.]+)\s*-\s*\$([0-9,.]+)\s*(per|\/|\s)?\s*(year|annual|annually|month|monthly|hour|hourly)/i;
-    const match = content.match(salaryRegex);
-    
-    if (match) {
-      // Remove commas and convert to number
-      const min = parseInt(match[1].replace(/,/g, ''), 10);
-      const max = parseInt(match[2].replace(/,/g, ''), 10);
+  // Common location patterns in job descriptions
+  const locationPatterns = [
+    /\blocation(?:s)?\s*(?::|is|are)\s*(.*?)(?:\.|,|\n|<\/p>|<br>)/i,
+    /\boffice(?:s)?\s*(?::|in|at)\s*(.*?)(?:\.|,|\n|<\/p>|<br>)/i,
+    /\bposition(?:s)?\s*(?:is|are)\s*(?:in|at)\s*(.*?)(?:\.|,|\n|<\/p>|<br>)/i,
+    /\bbased\s*(?:in|at)\s*(.*?)(?:\.|,|\n|<\/p>|<br>)/i,
+    /\bwork\s*(?:from|in|at)\s*(.*?)(?:\.|,|\n|<\/p>|<br>)/i,
+    /\bremote\s*(?:in|across)\s*(.*?)(?:\.|,|\n|<\/p>|<br>)/i
+  ];
+  
+  for (const pattern of locationPatterns) {
+    const match = description.match(pattern);
+    if (match && match[1]) {
+      // Clean up the extracted location text
+      const locationText = match[1]
+        .replace(/<[^>]*>/g, '') // Remove HTML tags
+        .replace(/&nbsp;/g, ' ') // Replace &nbsp; with space
+        .trim();
       
-      if (!isNaN(min)) result.min = min;
-      if (!isNaN(max)) result.max = max;
-      result.currency = 'USD'; // Assuming USD for now
-      
-      // Determine interval
-      const intervalText = match[4].toLowerCase();
-      if (intervalText.includes('year') || intervalText.includes('annual')) {
-        result.interval = 'yearly';
-      } else if (intervalText.includes('month')) {
-        result.interval = 'monthly';
-      } else if (intervalText.includes('hour')) {
-        result.interval = 'hourly';
+      // Split by common delimiters
+      const delimiters = [',', ' or ', ' and ', '/', '·', '-', '&'];
+      for (const delimiter of delimiters) {
+        if (locationText.includes(delimiter)) {
+          return locationText
+            .split(delimiter)
+            .map(loc => loc.trim())
+            .filter(Boolean);
+        }
       }
+      
+      // If no delimiters found, return as a single location
+      return [locationText];
     }
-  } catch (error) {
-    console.error('Error extracting salary info:', error);
   }
   
-  return result;
+  // Look for specific location mentions in the text
+  const commonLocations = [
+    'New York', 'San Francisco', 'Los Angeles', 'Chicago', 'Boston', 'Seattle', 
+    'Austin', 'Denver', 'Toronto', 'London', 'Berlin', 'Paris', 'Sydney', 
+    'Singapore', 'Tokyo', 'United States', 'Canada', 'UK', 'Europe', 'Asia'
+  ];
+  
+  const foundLocations = commonLocations.filter(loc => 
+    description.includes(loc) || 
+    description.includes(loc.toUpperCase()) || 
+    description.includes(loc.toLowerCase())
+  );
+  
+  if (foundLocations.length > 0) {
+    return foundLocations;
+  }
+  
+  return [];
 } 

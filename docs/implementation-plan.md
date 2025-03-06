@@ -50,6 +50,15 @@
     UNIQUE(name)
   );
 
+  -- Job Locations table (new)
+  CREATE TABLE job_locations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    job_id UUID REFERENCES jobs(id) ON DELETE CASCADE,
+    location TEXT NOT NULL,
+    is_remote BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  );
+
   -- Jobs table
   CREATE TABLE jobs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -57,9 +66,9 @@
     external_id TEXT NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
-    location TEXT,
     department_id UUID REFERENCES departments(id),
     department_raw TEXT, -- Original department text from job posting
+    is_remote BOOLEAN DEFAULT FALSE, -- Flag for remote jobs
     salary_min INTEGER,
     salary_max INTEGER,
     salary_currency TEXT,
@@ -151,6 +160,8 @@
 - Created SQL script for manual execution in Supabase dashboard
 - Added TypeScript types for database schema
 - Verified database setup with test queries
+- Added job_locations table to support multiple locations per job
+- Added is_remote flag to jobs table for quick filtering of remote jobs
 
 ### 1.3 Department Mapping System Setup
 - ✅ Request and initialize the manual department list

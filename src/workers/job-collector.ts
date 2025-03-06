@@ -38,6 +38,7 @@ interface JobData {
   externalId: string;
   title: string;
   location: string;
+  locations?: string[];
   description: string;
   url: string;
   department: string;
@@ -48,6 +49,58 @@ interface JobData {
     currency: string;
     interval: string;
   };
+}
+
+/**
+ * Logs an error to the database
+ */
+async function logError(
+  errorData: {
+    apiName: string;
+    message: string;
+    stack?: string;
+    context?: any;
+  },
+  supabase: SupabaseClient<Database>
+) {
+  try {
+    const { error } = await supabase
+      .from('api_errors')
+      .insert({
+        api_name: errorData.apiName,
+        error_message: errorData.message,
+        error_stack: errorData.stack,
+        context: errorData.context,
+        created_at: new Date().toISOString()
+      });
+    
+    if (error) {
+      console.error(`Error logging API error to database:`, error);
+    }
+  } catch (error) {
+    console.error(`Error in logError:`, error);
+  }
+}
+
+/**
+ * Creates a Supabase client for the worker
+ */
+function createSupabaseClient(env: Env): SupabaseClient<Database> {
+  const supabaseUrl = env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = env.SUPABASE_SERVICE_KEY;
+  
+  if (!supabaseUrl) {
+    throw new Error('Missing Supabase URL');
+  }
+  
+  if (!supabaseKey) {
+    throw new Error('Missing Supabase service key');
+  }
+  
+  console.log(`Creating Supabase client with URL: ${supabaseUrl}`);
+  console.log(`Using service key: ${supabaseKey ? 'Yes' : 'No'}`);
+  
+  return createWorkerSupabaseClient(supabaseUrl, supabaseKey);
 }
 
 /**
@@ -98,6 +151,8 @@ async function processJobData(jobs: JobData[], companyId: string, supabase: Supa
     
     // Process jobs in batches
     const BATCH_SIZE = 10; // Process 10 jobs at a time
+    const jobsWithIds: { id: string; external_id: string }[] = [];
+    
     for (let i = 0; i < jobs.length; i += BATCH_SIZE) {
       const jobBatch = jobs.slice(i, i + BATCH_SIZE);
       console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(jobs.length / BATCH_SIZE)}`);
@@ -122,7 +177,7 @@ async function processJobData(jobs: JobData[], companyId: string, supabase: Supa
       }));
       
       // Upsert the batch
-      const { error } = await supabase
+      const { data: insertedJobs, error } = await supabase
         .from('jobs')
         .upsert(jobsToUpsert, {
           onConflict: 'company_id,external_id'
@@ -136,7 +191,7 @@ async function processJobData(jobs: JobData[], companyId: string, supabase: Supa
           try {
             console.log(`Retrying individual job: ${job.title}`);
             
-            const { error: individualError } = await supabase
+            const { data: insertedJob, error: individualError } = await supabase
               .from('jobs')
               .upsert({
                 company_id: companyId,
@@ -162,6 +217,17 @@ async function processJobData(jobs: JobData[], companyId: string, supabase: Supa
               console.error(`Error inserting job ${job.title}:`, individualError);
             } else {
               console.log(`Successfully inserted/updated job: ${job.title}`);
+              // After successful insert, get the job ID
+              const { data: jobData } = await supabase
+                .from('jobs')
+                .select('id, external_id')
+                .eq('company_id', companyId)
+                .eq('external_id', job.externalId)
+                .single();
+                
+              if (jobData) {
+                jobsWithIds.push({ id: jobData.id, external_id: jobData.external_id });
+              }
             }
             
             // Add a delay between individual job inserts
@@ -172,12 +238,27 @@ async function processJobData(jobs: JobData[], companyId: string, supabase: Supa
         }
       } else {
         console.log(`Successfully inserted/updated batch of ${jobBatch.length} jobs`);
+        // After successful batch insert, get the job IDs
+        const { data: jobsData } = await supabase
+          .from('jobs')
+          .select('id, external_id')
+          .eq('company_id', companyId)
+          .in('external_id', jobBatch.map(job => job.externalId));
+          
+        if (jobsData && jobsData.length > 0) {
+          jobsWithIds.push(...jobsData.map(job => ({ id: job.id, external_id: job.external_id })));
+        }
       }
       
       // Add a delay between batches to avoid rate limits
       if (i + BATCH_SIZE < jobs.length) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
+    }
+    
+    // Process job locations
+    if (jobsWithIds.length > 0) {
+      await processJobLocations(supabase, jobsWithIds, jobs);
     }
     
     // Update company job count with retry logic
@@ -187,29 +268,19 @@ async function processJobData(jobs: JobData[], companyId: string, supabase: Supa
     
     while (!success && retries < MAX_RETRIES) {
       try {
-        console.log(`Getting job count for company ${companyId}... (attempt ${retries + 1})`);
+        console.log(`Updating job count for company ${companyId}... (attempt ${retries + 1})`);
         
-        // First, get the current count of active jobs for this company
-        const { count, error: countError } = await supabase
-          .from('jobs')
-          .select('*', { count: 'exact', head: true })
-          .eq('company_id', companyId)
-          .eq('status', 'active');
+        // Use the currentExternalIds length as the job count instead of making a separate query
+        // This is more efficient and avoids the "Too many subrequests" error
+        const jobCount = currentExternalIds.length;
         
-        console.log(`Count query result: count=${count}, error=${countError ? JSON.stringify(countError) : 'none'}`);
+        console.log(`Using job count from processed data: ${jobCount}`);
         
-        if (countError) {
-          console.error(`Error getting job count:`, countError);
-          throw countError;
-        }
-        
-        console.log(`Updating company ${companyId} with total_jobs_count=${count}...`);
-        
-        // Then update the company record with the actual count
+        // Update the company record with the job count
         const { error } = await supabase
           .from('companies')
           .update({
-            total_jobs_count: count,
+            total_jobs_count: jobCount,
             last_updated: new Date().toISOString()
           })
           .eq('id', companyId);
@@ -220,7 +291,7 @@ async function processJobData(jobs: JobData[], companyId: string, supabase: Supa
           console.error(`Error updating company job count:`, error);
           throw error;
         } else {
-          console.log(`Successfully updated company ${companyId} job count to ${count}`);
+          console.log(`Successfully updated company ${companyId} job count to ${jobCount}`);
           success = true;
         }
       } catch (error) {
@@ -243,52 +314,180 @@ async function processJobData(jobs: JobData[], companyId: string, supabase: Supa
 }
 
 /**
- * Simple mock implementation of error logging
+ * Process job locations for new or updated jobs
  */
-async function logError(
-  errorData: {
-    apiName: string;
-    message: string;
-    stack?: string;
-    context: Record<string, any>;
-  },
-  supabase: SupabaseClient<Database>
-) {
-  console.error(`API Error in ${errorData.apiName}: ${errorData.message}`);
-  console.error('Context:', errorData.context);
-  
-  // In a real implementation, this would log to the database
+async function processJobLocations(
+  supabase: SupabaseClient<Database>,
+  jobsWithIds: { id: string; external_id: string }[],
+  rawJobs: JobData[]
+): Promise<void> {
   try {
-    await supabase
-      .from('api_errors')
-      .insert({
-        api_type: errorData.apiName,
-        error_message: errorData.message,
-        company_id: errorData.context.companyId,
-        company_name: errorData.context.companyName || 'Unknown',
-        created_at: new Date().toISOString()
-      });
+    // Create a map of raw jobs by external_id for faster lookup
+    const rawJobsMap = new Map<string, JobData>();
+    rawJobs.forEach(job => {
+      rawJobsMap.set(job.externalId, job);
+    });
+    
+    // Get existing job locations for these jobs
+    const { data: existingLocations, error: locError } = await supabase
+      .from('job_locations')
+      .select('id, job_id, location')
+      .in('job_id', jobsWithIds.map(job => job.id));
+    
+    if (locError) {
+      console.error('Error fetching existing job locations:', locError);
+      return;
+    }
+    
+    // Create a map of existing locations by job_id
+    const existingLocationsMap = new Map<string, { id: string; location: string }[]>();
+    existingLocations?.forEach(loc => {
+      if (!existingLocationsMap.has(loc.job_id)) {
+        existingLocationsMap.set(loc.job_id, []);
+      }
+      existingLocationsMap.get(loc.job_id)!.push({ id: loc.id, location: loc.location });
+    });
+    
+    // Process each job
+    for (const job of jobsWithIds) {
+      // Find the raw job data
+      const rawJob = rawJobsMap.get(job.external_id);
+      
+      if (!rawJob) {
+        console.warn(`Could not find raw job data for job ID ${job.id}`);
+        continue;
+      }
+      
+      // Get locations from the raw job and ensure they're properly split
+      let rawLocations: string[] = [];
+      
+      // Check if the job has a locations array
+      if (rawJob.locations && Array.isArray(rawJob.locations) && rawJob.locations.length > 0) {
+        // Process each location to split any that contain delimiters
+        rawJob.locations.forEach(loc => {
+          // Split locations that might contain multiple locations
+          const splitLocations = splitLocationString(loc);
+          rawLocations.push(...splitLocations);
+        });
+      } else if (rawJob.location) {
+        // Split a single location string that might contain multiple locations
+        rawLocations = splitLocationString(rawJob.location);
+      }
+      
+      // Remove duplicates and empty locations
+      const locations = [...new Set(rawLocations)].filter(Boolean);
+      
+      // Skip if no locations
+      if (locations.length === 0) {
+        continue;
+      }
+      
+      // Get existing locations for this job
+      const existingJobLocations = existingLocationsMap.get(job.id) || [];
+      
+      // Determine which locations to add and which to remove
+      const existingLocationSet = new Set(existingJobLocations.map(loc => loc.location));
+      const newLocationSet = new Set(locations);
+      
+      // Locations to add (in new set but not in existing set)
+      const locationsToAdd = [...newLocationSet].filter(loc => !existingLocationSet.has(loc));
+      
+      // Locations to remove (in existing set but not in new set)
+      const locationsToRemove = existingJobLocations
+        .filter(loc => !newLocationSet.has(loc.location))
+        .map(loc => loc.id);
+      
+      // Add new locations
+      if (locationsToAdd.length > 0) {
+        const locationsData = locationsToAdd.map(location => ({
+          job_id: job.id,
+          location,
+          is_remote: isRemoteLocation(location),
+          created_at: new Date().toISOString()
+        }));
+        
+        const { error: addLocError } = await supabase
+          .from('job_locations')
+          .insert(locationsData);
+        
+        if (addLocError) {
+          console.error(`Error adding locations for job ${job.id}:`, addLocError);
+        }
+      }
+      
+      // Remove old locations
+      if (locationsToRemove.length > 0) {
+        const { error: removeLocError } = await supabase
+          .from('job_locations')
+          .delete()
+          .in('id', locationsToRemove);
+        
+        if (removeLocError) {
+          console.error(`Error removing locations for job ${job.id}:`, removeLocError);
+        }
+      }
+      
+      // Update the is_remote flag in the jobs table if any location is remote
+      const hasRemoteLocation = locations.some(isRemoteLocation);
+      if (hasRemoteLocation) {
+        const { error: updateError } = await supabase
+          .from('jobs')
+          .update({ is_remote: true })
+          .eq('id', job.id);
+        
+        if (updateError) {
+          console.error(`Error updating is_remote flag for job ${job.id}:`, updateError);
+        }
+      }
+    }
   } catch (error) {
-    console.error('Failed to log error to database:', error);
+    console.error('Error processing job locations:', error);
   }
 }
 
 /**
- * Creates a Supabase client using the available credentials
+ * Split a location string that might contain multiple locations
+ * @param locationString The location string to split
+ * @returns Array of individual locations
  */
-function createSupabaseClient(env: Env) {
-  // Try to use the service key first, then fall back to the anon key
-  const supabaseUrl = env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || 'https://cpgwkmqyffzhuqnfwahq.supabase.co';
-  const supabaseKey = env.SUPABASE_SERVICE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+function splitLocationString(locationString: string): string[] {
+  if (!locationString) return [];
   
-  console.log(`Creating Supabase client with URL: ${supabaseUrl}`);
-  console.log(`Using service key: ${env.SUPABASE_SERVICE_KEY ? 'Yes' : 'No'}`);
+  // Common delimiters in location strings
+  const delimiters = [' · ', ', ', ' - ', '/', ' and ', ' & '];
   
-  if (!supabaseKey) {
-    throw new Error('Supabase key not found. Please set SUPABASE_SERVICE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable.');
+  // Try each delimiter
+  for (const delimiter of delimiters) {
+    if (locationString.includes(delimiter)) {
+      return locationString
+        .split(delimiter)
+        .map(loc => loc.trim())
+        .filter(Boolean);
+    }
   }
   
-  return createWorkerSupabaseClient(supabaseUrl, supabaseKey);
+  // If no delimiters found, return the original string as a single location
+  return [locationString.trim()];
+}
+
+/**
+ * Check if a location string indicates a remote position
+ */
+function isRemoteLocation(location: string): boolean {
+  if (!location) return false;
+  
+  const remoteKeywords = [
+    'remote',
+    'work from home',
+    'wfh',
+    'virtual',
+    'telecommute',
+    'anywhere',
+    'distributed'
+  ];
+  
+  const locationLower = location.toLowerCase();
+  return remoteKeywords.some(keyword => locationLower.includes(keyword));
 }
 
 /**
@@ -380,7 +579,7 @@ async function collectJobsForCompany(
         context: { companyId, jobBoardUrl, boardIdentifier }
       }, supabase);
     } catch (logError) {
-      console.error(`Failed to log error:`, logError);
+      console.error(`Error logging error:`, logError);
     }
   }
 }
