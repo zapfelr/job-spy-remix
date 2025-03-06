@@ -36,22 +36,29 @@ export async function fetchGreenhouseJobs(companyName: string): Promise<RawJobDa
     
     // Transform Greenhouse job data to our standard format
     if (data.jobs && Array.isArray(data.jobs)) {
-      return data.jobs.map((job: any) => {
-        // Extract salary information from content if available
-        const salaryInfo = extractSalaryInfo(job.content);
+      // Process a maximum of 100 jobs to avoid hitting rate limits
+      const jobsToProcess = data.jobs.slice(0, 100);
+      console.log(`Processing ${jobsToProcess.length} jobs (limited to 100 max)`);
+      
+      // Map the jobs to our standard format
+      return jobsToProcess.map((job: any) => {
+        // For Greenhouse, we don't have full content in the initial response
+        // We'll use a simplified description from available fields
+        const description = job.metadata?.description || 
+                           `${job.title} at ${job.company_name}. Location: ${job.location?.name || 'Remote/Various'}`;
         
         return {
           externalId: job.id.toString(),
           title: job.title || '',
-          description: job.content || '',
+          description: description,
           location: job.location?.name || '',
           department: job.departments?.[0]?.name || '',
           url: job.absolute_url || '',
           salary: {
-            min: salaryInfo.min,
-            max: salaryInfo.max,
-            currency: salaryInfo.currency,
-            interval: salaryInfo.interval
+            min: null,
+            max: null,
+            currency: 'USD', // Default assumption
+            interval: 'yearly' // Default assumption
           }
         };
       });
