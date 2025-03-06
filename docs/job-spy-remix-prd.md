@@ -1,7 +1,7 @@
 # Product Requirements Document: Job Spy (Remix)
 
 ## Overview
-Job Spy is a web application that provides a centralized feed of job changes across major companies, allowing job seekers to track changes to jobs at companies they're interested in and stay informed about new opportunities, removed listings, or modified positions. The goal is to take control back from LinkedIn.
+Job Spy is a web application that provides a centralized feed of job changes across major companies, allowing job seekers to track changes to jobs at companies they're interested in and stay informed about new opportunities, removed listings, or modified positions.
 
 ## Problem Statement
 Job seekers currently face an inefficient process when monitoring companies for opportunities:

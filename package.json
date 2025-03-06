@@ -14,7 +14,10 @@
     "test-departments": "npm run build-scripts && node dist/scripts/test-department-matcher.js",
     "setup-departments": "npm run build-scripts && node dist/scripts/setup-departments.js",
     "generate-test-data": "npm run build-scripts && node dist/scripts/generate-test-data.js",
-    "setup-api-errors": "ts-node --project tsconfig.json src/db/api-errors-table.sql"
+    "setup-api-errors": "ts-node --project tsconfig.json src/db/api-errors-table.sql",
+    "test:change-detection": "ts-node -P tsconfig.scripts.json src/scripts/test-change-detection.ts",
+    "deploy:job-collector": "npx wrangler deploy --config wrangler.toml",
+    "deploy:job-changes-cleanup": "npx wrangler deploy --config wrangler.job-changes-cleanup.toml"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.10.0",
